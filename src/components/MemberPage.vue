@@ -66,7 +66,7 @@
   <!-- <button @click="connectWallet" v-else>Connect to Pera Wallet</button> -->
   <div v-if="accountAddress" class="text-xl text-green-800 mr-4"><i class="pi pi-wallet mr-3"> </i>{{getConnectionLabel()}}</div>
   <div style="min-width: 4rem" v-if="accountAddress != null">
-          <Button label="Reset" class="p-button-danger ml-2" icon="pi pi-times" style="width: auto" @click="disconnectWallet"/>
+          <Button label="Reset" class="p-button-danger ml-2" icon="pi pi-times" style="width: auto" @click="resetAndDisconnectWallet"/>
 
         </div>
  
@@ -199,23 +199,13 @@
 import axios from "axios";
 import { PeraWalletConnect } from "@perawallet/connect";
 import {useWalletStore} from '@/stores/wallet'
-
-const algosdk = require('algosdk');
 const peraWallet = new PeraWalletConnect({ chainId: 416002 });
-const token = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-const server = "http://localhost";
-const walletStore = useWalletStore();
-
-const port = 4001;
-let algodclient = new algosdk.Algodv2(token, server, port);
-
+ const walletStore = useWalletStore();
+ const algosdk = require('algosdk');
 // You must sign a 0 ALGO transaction to prove ownership of this address.
 // This transaction does not get published to the network,
 // it is only used to verify account ownership on AlgoExplorer.
 
-
-
-const vendor_address = "NWR46NHXFRJBNTQCRCT2NTNYH57RUKSPYLVWZYN6BVLLLGTZTEPS5S6PHE"
 
 export default {
   props: {
@@ -239,7 +229,7 @@ export default {
     }
   },
   mounted() {
-    // this.myRequests(this.memberid)
+    this.myRequests(this.memberid)
     peraWallet
       .reconnectSession()
       .then((accounts) => {
@@ -256,7 +246,7 @@ export default {
       });
   },
   methods: {
-    connectWallet() {
+    async connectWallet() {
       peraWallet
         .connect()
         .then((accounts) => {
@@ -264,13 +254,64 @@ export default {
 
           this.accountAddress = accounts[0];
           walletStore.saveWalletData(this.accountAddress);
-          this.authenticate(this.accountAddress)
-          // this.myRequests(this.memberid);
+          this.authenticate()
         })
         .catch((e) => console.log(e));
     },
-    disconnectWallet() {
+    async disconnectWallet() {
       peraWallet.disconnect().then(() => (this.accountAddress = null));
+    },
+
+
+
+    async authenticate() {
+    if (!this.accountAddress) {
+        console.error("Wallet not connected");
+        return;
+    }
+
+    console.log("Do we at least get to this point");
+
+    try {
+        // Send a request to your backend to get the transaction data
+        const response = await axios.post("/api/authenticate", {
+            accountAddress: this.accountAddress,
+        });
+
+       // Zero-Algo Case:  Use bytes from the first (and only) array element
+        const encodedTransaction  = response.data.txn; // Assuming Uint8Array 
+        console.log("Is this what we have been missing:? ",encodedTransaction);
+        const rawTransactionBytes = new Uint8Array(Object.values(encodedTransaction)); 
+        console.log("Does Pera accept this? : ",rawTransactionBytes);
+        // const txnData = response.data; // Convert to JSON string
+        // console.log("This is the response from backend", txnData);
+       
+        const txnGroup = [{ txn: rawTransactionBytes, signers: [this.accountAddress] }];
+
+        console.log("Constructed txn: ",txnGroup);
+        // Sign the transaction using PeraWallet
+        const signedTxnArray = await peraWallet.signTransaction([txnGroup]);
+
+        console.log("Signed?? txn: ",signedTxnArray);
+        const signedTxn = algosdk.decodeSignedTransaction(signedTxnArray[0]);
+
+        // Submit the signed transaction to the backend
+        const backendResponse = await axios.post("/api/submitTransaction", {
+            signedTxn,
+        });
+
+        // Handle success from the backend
+        console.log("Backend response:", backendResponse.data);
+    } catch (error) {
+        // Handle errors from both frontend and backend
+        console.error("Authentication error:", error);
+    }
+},
+
+
+    resetAndDisconnectWallet() {
+      // Disconnect the wallet
+      this.disconnectWallet();
     },
     getConnectionLabel() {
       return this.accountAddress != null ? `Connected to: ${this.accountAddress}` : 'Connect Wallet'
@@ -323,54 +364,20 @@ export default {
         this.errorToast('Error', err.response.data)
       })
     },
-    async authenticate() {
-
-      const accountAddress = this.accountAddress;
-      console.log("Ready??",accountAddress);
-
-      // Update the wallet data in the store
-      const public_key = accountAddress;
-      console.log("Public address",public_key);
-
-      // Use the updated public key variable to make the transaction
-      const params = await algodclient.getTransactionParams().do();
-      const recipient = vendor_address;
-      const amount = 0;
-      const note = algosdk.encodeObj({ message: `Authenticating ${public_key}` });
-      const txn = algosdk.makePaymentTxnWithSuggestedParams(
-        public_key,
-        recipient,
-        amount,
-        undefined,
-        note,
-        params
-      );
-      const txnGroup = [{txn: txn, signers: [public_key]}];
-      console.log("do we get here??", txnGroup)
-
-      // Sign the transaction using the wallet
-      const signedTransactions = await peraWallet.signTransaction([txnGroup]);
-      console.log("Got here??")
-
-      // Send the signed transaction to the Algorand network
-      const xtx = await algodclient.sendRawTransaction(signedTransactions).do();
-      console.log(`Transaction ID: ${xtx.txId}`);
-
-      // Wait for confirmation of the transaction
-      const confirmedTxn = await algosdk.waitForConfirmation(algodclient, xtx.txId, 400);
-
-      // Get the completed transaction
-      console.log("Transaction " + xtx.txId + " confirmed in round " + confirmedTxn["confirmed-round"]);
-      // check if user has been authenticated
-      // select the login button element by its id
-      // var loginButton = document.getElementById("login-button");
-      // // hide the login button by setting its display style property to "none"
-      // loginButton.style.display = "none";
-
-      this.successToast('Success', `Your identity has been confirmed!`);
-
-      this.myAccount(public_key)
-    },
+    
+//   authenticateBackend(accountAddress) {
+//   // Send a POST request to your backend authentication endpoint
+//   axios.post('/api/authenticate', { accountAddress })
+//     .then((response) => {
+//       console.log(response.data.message);
+//       this.successToast('Success', 'Your identity has been confirmed!');
+//       this.myAccount(accountAddress);
+//     })
+//     .catch((error) => {
+//       console.error(error);
+//       this.errorToast('Error', 'Authentication failed. Please try again.');
+//     });
+// },
     myAccount(walletaddress) {
       axios.post('/api/myaccount', {
           walletaddress: walletaddress
@@ -408,10 +415,6 @@ export default {
         console.log(e.message);
       });
     },
-    reset() {
-      useWalletStore().$reset();
-      console.log('Reset connection to wallet')
-    },
     deleteRequest(data) {
       axios.post('/member/delete',
           {
@@ -428,4 +431,6 @@ export default {
     }
   }
 };
+
+
 </script>
