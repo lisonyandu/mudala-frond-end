@@ -201,7 +201,7 @@ import { PeraWalletConnect } from "@perawallet/connect";
 import {useWalletStore} from '@/stores/wallet'
 const peraWallet = new PeraWalletConnect({ chainId: 416002 });
  const walletStore = useWalletStore();
- const algosdk = require('algosdk');
+//  const algosdk = require('algosdk');
 // You must sign a 0 ALGO transaction to prove ownership of this address.
 // This transaction does not get published to the network,
 // it is only used to verify account ownership on AlgoExplorer.
@@ -264,49 +264,49 @@ export default {
 
 
 
-    async authenticate() {
-    if (!this.accountAddress) {
-        console.error("Wallet not connected");
-        return;
-    }
+//     async authenticate() {
+//     if (!this.accountAddress) {
+//         console.error("Wallet not connected");
+//         return;
+//     }
 
-    console.log("Do we at least get to this point");
+//     console.log("Do we at least get to this point");
 
-    try {
-        // Send a request to your backend to get the transaction data
-        const response = await axios.post("/api/authenticate", {
-            accountAddress: this.accountAddress,
-        });
+//     try {
+//         // Send a request to your backend to get the transaction data
+//         const response = await axios.post("/api/authenticate", {
+//             accountAddress: this.accountAddress,
+//         });
 
-       // Zero-Algo Case:  Use bytes from the first (and only) array element
-        const encodedTransaction  = response.data.txn; // Assuming Uint8Array 
-        console.log("Is this what we have been missing:? ",encodedTransaction);
-        const rawTransactionBytes = new Uint8Array(Object.values(encodedTransaction)); 
-        console.log("Does Pera accept this? : ",rawTransactionBytes);
-        // const txnData = response.data; // Convert to JSON string
-        // console.log("This is the response from backend", txnData);
+//        // Zero-Algo Case:  Use bytes from the first (and only) array element
+//         const encodedTransaction  = response.data.txn; // Assuming Uint8Array 
+//         console.log("Is this what we have been missing:? ",encodedTransaction);
+//         const rawTransactionBytes = new Uint8Array(Object.values(encodedTransaction)); 
+//         console.log("Does Pera accept this? : ",rawTransactionBytes);
+//         // const txnData = response.data; // Convert to JSON string
+//         // console.log("This is the response from backend", txnData);
        
-        const txnGroup = [{ txn: rawTransactionBytes, signers: [this.accountAddress] }];
+//         const txnGroup = [{ txn: rawTransactionBytes, signers: [this.accountAddress] }];
 
-        console.log("Constructed txn: ",txnGroup);
-        // Sign the transaction using PeraWallet
-        const signedTxnArray = await peraWallet.signTransaction([txnGroup]);
+//         console.log("Constructed txn: ",txnGroup);
+//         // Sign the transaction using PeraWallet
+//         const signedTxnArray = await peraWallet.signTransaction([txnGroup]);
 
-        console.log("Signed?? txn: ",signedTxnArray);
-        const signedTxn = algosdk.decodeSignedTransaction(signedTxnArray[0]);
+//         console.log("Signed?? txn: ",signedTxnArray);
+//         const signedTxn = algosdk.decodeSignedTransaction(signedTxnArray[0]);
 
-        // Submit the signed transaction to the backend
-        const backendResponse = await axios.post("/api/submitTransaction", {
-            signedTxn,
-        });
+//         // Submit the signed transaction to the backend
+//         const backendResponse = await axios.post("/api/submitTransaction", {
+//             signedTxn,
+//         });
 
-        // Handle success from the backend
-        console.log("Backend response:", backendResponse.data);
-    } catch (error) {
-        // Handle errors from both frontend and backend
-        console.error("Authentication error:", error);
-    }
-},
+//         // Handle success from the backend
+//         console.log("Backend response:", backendResponse.data);
+//     } catch (error) {
+//         // Handle errors from both frontend and backend
+//         console.error("Authentication error:", error);
+//     }
+// },
 
 
     resetAndDisconnectWallet() {
